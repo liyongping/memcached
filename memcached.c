@@ -4745,7 +4745,7 @@ int main (int argc, char **argv) {
     }
 
     /* handle SIGINT */
-    signal(SIGINT, sig_handler);
+    signal(SIGINT, sig_handler);    //SIGINT,执行退出动作
 
     /* init settings */
     settings_init();
