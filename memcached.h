@@ -276,9 +276,9 @@ struct stats {
  * Globally accessible settings as derived from the commandline.
  */
 struct settings {
-    size_t maxbytes;
+    size_t maxbytes;    /* 设置允许的最大内存用量 */
     int maxconns;
-    int port;
+    int port;   /* 监听端口 */
     int udpport;
     char *inter;
     int verbose;

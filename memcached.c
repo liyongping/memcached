@@ -4705,7 +4705,7 @@ static bool sanitycheck(void) {
 int main (int argc, char **argv) {
     int c;
     bool lock_memory = false;
-    bool do_daemonize = false;
+    bool do_daemonize = false;      // 守护进程，独立的进程方式运行
     bool preallocate = false;
     int maxcore = 0;
     char *username = NULL;
@@ -4745,7 +4745,7 @@ int main (int argc, char **argv) {
     }
 
     /* handle SIGINT */
-    signal(SIGINT, sig_handler);    //SIGINT,执行退出动作
+    signal(SIGINT, sig_handler);    //SIGINT键盘中断信号,执行退出动作
 
     /* init settings */
     settings_init();
@@ -4793,14 +4793,14 @@ int main (int argc, char **argv) {
             settings.udpport = atoi(optarg);
             udp_specified = true;
             break;
-        case 'p':
+        case 'p':   // 设置监听端口
             settings.port = atoi(optarg);
             tcp_specified = true;
             break;
         case 's':
             settings.socketpath = optarg;
             break;
-        case 'm':
+        case 'm':   // 设置允许的最大内存用量
             settings.maxbytes = ((size_t)atoi(optarg)) * 1024 * 1024;
             break;
         case 'M':
@@ -4836,7 +4836,7 @@ int main (int argc, char **argv) {
                 settings.inter= strdup(optarg);
             }
             break;
-        case 'd':
+        case 'd':   // 守护进程，独立的进程方式运行
             do_daemonize = true;
             break;
         case 'r':
@@ -4849,7 +4849,7 @@ int main (int argc, char **argv) {
                 return 1;
             }
             break;
-        case 'u':
+        case 'u':   // 设置当前运行这个程序的用户名
             username = optarg;
             break;
         case 'P':
@@ -5023,7 +5023,7 @@ int main (int argc, char **argv) {
     }
 
     if (tcp_specified && !udp_specified) {
-        settings.udpport = settings.port;
+        settings.udpport = settings.port;   // 设置UDP的监控端口
     } else if (udp_specified && !tcp_specified) {
         settings.port = settings.udpport;
     }
@@ -5065,7 +5065,7 @@ int main (int argc, char **argv) {
     } else {
         rlim.rlim_cur = settings.maxconns;
         rlim.rlim_max = settings.maxconns;
-        if (setrlimit(RLIMIT_NOFILE, &rlim) != 0) {
+        if (setrlimit(RLIMIT_NOFILE, &rlim) != 0) { // 修改连接数限制
             fprintf(stderr, "failed to set rlimit for open files. Try starting as root or requesting smaller maxconns value.\n");
             exit(EX_OSERR);
         }
@@ -5077,11 +5077,11 @@ int main (int argc, char **argv) {
             fprintf(stderr, "can't run as root without the -u switch\n");
             exit(EX_USAGE);
         }
-        if ((pw = getpwnam(username)) == 0) {
+        if ((pw = getpwnam(username)) == 0) {   // 获取用户登陆相关信息，返回个struct passwd结构的数据
             fprintf(stderr, "can't find the user %s to switch to\n", username);
             exit(EX_NOUSER);
         }
-        if (setgid(pw->pw_gid) < 0 || setuid(pw->pw_uid) < 0) {
+        if (setgid(pw->pw_gid) < 0 || setuid(pw->pw_uid) < 0) { // 设置当前进程的权限为用户username的权限
             fprintf(stderr, "failed to assume identity of user %s\n", username);
             exit(EX_OSERR);
         }

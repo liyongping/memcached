@@ -46,18 +46,20 @@ int daemonize(int nochdir, int noclose)
     int fd;
 
     switch (fork()) {
-    case -1:
+    case -1:    // 出错
         return (-1);
-    case 0:
+    case 0:     // 子进程
         break;
-    default:
+    default:    // 父进程，退出
         _exit(EXIT_SUCCESS);
     }
-
+    // setsid函数将创建新的会话，并使得调用setsid函数的进程成为新会话的领头进程
     if (setsid() == -1)
         return (-1);
 
     if (nochdir == 0) {
+        // 使用fork函数产生的子进程将继承父进程的当前工作目录。当进程没有结束时，其工作目录是不能被卸载的。
+        // 为了防止这种问题发生，守护进程一般会将其工作目录更改到根目录下（/目录）
         if(chdir("/") != 0) {
             perror("chdir");
             return (-1);
@@ -65,7 +67,8 @@ int daemonize(int nochdir, int noclose)
     }
 
     if (noclose == 0 && (fd = open("/dev/null", O_RDWR, 0)) != -1) {
-        if(dup2(fd, STDIN_FILENO) < 0) {
+        // 新产生的进程从父进程继承了某些打开的文件描述符，如果不使用这些文件描述符，则需要关闭它们
+        if(dup2(fd, STDIN_FILENO) < 0) {    // 把stdin重定向到/dev/null
             perror("dup2 stdin");
             return (-1);
         }
