@@ -277,27 +277,26 @@ struct stats {
  */
 struct settings {
     size_t maxbytes;    /* 设置允许的最大内存用量 */
-    int maxconns;
-    int port;   /* 监听端口 */
-    int udpport;
-    char *inter;
-    int verbose;
+    int maxconns;       /* 最大连接数，默认1024 通过-c设定 */
+    int port;           /* 监听端口 */
+    int udpport;        /* tcp 端口号，通过-p 设置 */
+    char *inter;        /* 监听IP或SOCKET地址 ，通过-l设定 */
+    int verbose;        /* 是否输出debug信息。由-v,-vvv参数设定 */
     rel_time_t oldest_live; /* ignore existing items older than this */
-    int evict_to_free;
+    int evict_to_free;  /* 内存存满时，是否淘汰老数据。默认是是。可用-M修改为否。此时内容耗尽时，新插入数据时将返回失败。 */
     char *socketpath;   /* path to unix socket if using local socket */
     int access;  /* access mask (a la chmod) for unix domain socket */
-    double factor;          /* chunk size growth factor */
-    int chunk_size;
+    double factor;          /* chunk size growth factor，slab分配增量因子，默认围1.25， 可通过-f设定 */
+    int chunk_size;         /* 给一个key+value+flags 分配的最小字节数。 默认值为48. 可通过-n修改 */
     int num_threads;        /* number of worker (without dispatcher) libevent threads to run */
     int num_threads_per_udp; /* number of worker threads serving each udp socket */
-    char prefix_delimiter;  /* character that marks a key prefix (for stats) */
-    int detail_enabled;     /* nonzero if we're collecting detailed stats */
-    int reqs_per_event;     /* Maximum number of io to process on each
-                               io-event. */
-    bool use_cas;
-    enum protocol binding_protocol;
+    char prefix_delimiter;  /* character that marks a key prefix (for stats) 状态详情的key前缀 */
+    int detail_enabled;     /* nonzero if we're collecting detailed stats 开启状态详情记录 */
+    int reqs_per_event;     /* Maximum number of io to process on each io-event. 每个event处理的请求数 */
+    bool use_cas;           /* 开启cas，"cas"是一个存储检查操作。用来检查脏数据的存操作。在取出数据后，如果没有其他人修改此数据时，本进程才能够存储数据。默认为开启 */
+    enum protocol binding_protocol; /* 使用协议， 试过-B参数设定。 可能值为：ascii, binary, or auto */
     int backlog;
-    int item_size_max;        /* Maximum item size, and upper end for slabs */
+    int item_size_max;        /* Maximum item size, and upper end for slabs 单个item最大字计数。默认1M。可通过-I参数修改。纠正一个过期的观点，这个值实际上可以大于1M，必须小于128M。但nencached会抛出警告，大于1M将导致整体运行内存的增加和内存性能的降低 */
     bool sasl;              /* SASL on/off */
     bool maxconns_fast;     /* Whether or not to early close connections */
     bool slab_reassign;     /* Whether or not slab reassignment is allowed */
