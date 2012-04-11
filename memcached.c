@@ -5027,7 +5027,7 @@ int main (int argc, char **argv) {
     } else if (udp_specified && !tcp_specified) {
         settings.port = settings.udpport;
     }
-
+    // 检查是否设置core文件大小，当程序异常的时候需要dump core文件
     if (maxcore != 0) {
         struct rlimit rlim_new;
         /*
@@ -5072,6 +5072,7 @@ int main (int argc, char **argv) {
     }
 
     /* lose root privileges if we have them */
+    // memcached不允许使用root运行，如果是root操作，必须通过-u指定其运行用户
     if (getuid() == 0 || geteuid() == 0) {
         if (username == 0 || *username == '\0') {
             fprintf(stderr, "can't run as root without the -u switch\n");
@@ -5107,6 +5108,10 @@ int main (int argc, char **argv) {
     /* lock paged memory if needed */
     if (lock_memory) {
 #ifdef HAVE_MLOCKALL
+        /*
+         * mlock可以将进程使用的部分或者全部的地址空间锁定在物理内存中，防止其被交换到swap空间。
+         * 对时间敏感的应用会希望全部使用物理内存，提高数据访问和操作的效率.
+         */
         int res = mlockall(MCL_CURRENT | MCL_FUTURE);
         if (res != 0) {
             fprintf(stderr, "warning: -k invalid, mlockall() failed: %s\n",
@@ -5121,14 +5126,18 @@ int main (int argc, char **argv) {
     main_base = event_init();
 
     /* initialize other stuff */
+    // 始化状态信息
     stats_init();
+    // 初始化hash表。建立64K个void指针
     assoc_init(settings.hashpower_init);
+    // 初始化连接池。 这里可以看出来，memcached的连接池数freetotal=200. 这是memcached的最大并发
     conn_init();
     slabs_init(settings.maxbytes, settings.factor, preallocate);
 
     /*
      * ignore SIGPIPE signals; we can use errno == EPIPE if we
      * need that information
+     * 在Linux下写socket的程序的时候，如果尝试send到一个disconnected socket上，底层将抛出一个SIGPIPE信号。如果程序没有处理或没有忽略，这个信号将导致程序退出
      */
     if (sigignore(SIGPIPE) == -1) {
         perror("failed to ignore SIGPIPE; sigaction");
@@ -5136,7 +5145,7 @@ int main (int argc, char **argv) {
     }
     /* start up worker threads if MT mode */
     thread_init(settings.num_threads, main_base);
-
+    // 建立主线程
     if (start_assoc_maintenance_thread() == -1) {
         exit(EXIT_FAILURE);
     }
