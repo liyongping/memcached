@@ -20,8 +20,8 @@
 /* An item in the connection queue. */
 typedef struct conn_queue_item CQ_ITEM;
 struct conn_queue_item {
-    int               sfd;
-    enum conn_states  init_state;
+    int               sfd;                  /* 当前连接的fd句柄 */
+    enum conn_states  init_state;           /* 当前连接的状态 */
     int               event_flags;
     int               read_buffer_size;
     enum network_transport     transport;
@@ -346,15 +346,15 @@ static int last_thread = -1;
 void dispatch_conn_new(int sfd, enum conn_states init_state, int event_flags,
                        int read_buffer_size, enum network_transport transport) {
     CQ_ITEM *item = cqi_new();
-    int tid = (last_thread + 1) % settings.num_threads;
+    int tid = (last_thread + 1) % settings.num_threads;// 选择要处理当前连接的线程,策略：轮流处理，前一个处理线程是2的话，现在就是3
 
     LIBEVENT_THREAD *thread = threads + tid;
 
     last_thread = tid;
 
-    item->sfd = sfd;
-    item->init_state = init_state;
-    item->event_flags = event_flags;
+    item->sfd = sfd;    		   // 保存fd
+    item->init_state = init_state;  // 保存连接状态
+    item->event_flags = event_flags;// 保存evnet的标志
     item->read_buffer_size = read_buffer_size;
     item->transport = transport;
 
