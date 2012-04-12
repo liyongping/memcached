@@ -20,7 +20,7 @@ cache_t* cache_create(const char *name, size_t bufsize, size_t align,
                       cache_constructor_t* constructor,
                       cache_destructor_t* destructor) {
     cache_t* ret = calloc(1, sizeof(cache_t));
-    char* nm = strdup(name);
+    char* nm = strdup(name);// 使用malloc申请一个块内存，完全复制name的内容
     void** ptr = calloc(initial_pool_size, sizeof(void*));
     if (ret == NULL || nm == NULL || ptr == NULL ||
         pthread_mutex_init(&ret->mutex, NULL) == -1) {

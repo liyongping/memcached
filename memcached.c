@@ -448,7 +448,7 @@ conn *conn_new(const int sfd, enum conn_states init_state,
     c->item = 0;
 
     c->noreply = false;
-
+    // 当该连接有可读数据时会回调event_handler函数，实际上event_handler里主要是调用memcached的核心方法drive_machine
     event_set(&c->event, sfd, event_flags, event_handler, (void *)c);
     event_base_set(base, &c->event);
     c->ev_flags = event_flags;
@@ -3742,7 +3742,7 @@ static enum transmit_result transmit(conn *c) {
         return TRANSMIT_COMPLETE;
     }
 }
-
+/* drive_machine是多线程环境执行的，主线程和workers都会执行drive_machine */
 static void drive_machine(conn *c) {
     bool stop = false;
     int sfd, flags = 1;
@@ -3754,10 +3754,10 @@ static void drive_machine(conn *c) {
 
     assert(c != NULL);
 
-    while (!stop) {
+    while (!stop) {// 用while是考虑到垂直触发方式下，必须读到EWOULDBLOCK错误才可以
 
         switch(c->state) {
-        case conn_listening:
+        case conn_listening:// 处理accept来的新连接
             addrlen = sizeof(addr);
             if ((sfd = accept(c->sfd, (struct sockaddr *)&addr, &addrlen)) == -1) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
@@ -3774,6 +3774,7 @@ static void drive_machine(conn *c) {
                 }
                 break;
             }
+            // 设置套接字非阻塞
             if ((flags = fcntl(sfd, F_GETFL, 0)) < 0 ||
                 fcntl(sfd, F_SETFL, flags | O_NONBLOCK) < 0) {
                 perror("setting O_NONBLOCK");
@@ -3790,6 +3791,7 @@ static void drive_machine(conn *c) {
                 stats.rejected_conns++;
                 STATS_UNLOCK();
             } else {
+                // 将新连接分给worker线程
                 dispatch_conn_new(sfd, conn_new_cmd, EV_READ | EV_PERSIST,
                                      DATA_BUFFER_SIZE, tcp_transport);
             }
@@ -4869,7 +4871,7 @@ int main (int argc, char **argv) {
                 return 1;
             }
             break;
-        case 't':
+        case 't':// 注意下面的WARNING，线程数超过了cpu核的个数其实没有意义了，只会有负作用
             settings.num_threads = atoi(optarg);
             if (settings.num_threads <= 0) {
                 fprintf(stderr, "Number of threads must be greater than 0\n");
@@ -5136,7 +5138,7 @@ int main (int argc, char **argv) {
     }
     /* start up worker threads if MT mode */
     thread_init(settings.num_threads, main_base);
-
+    // 启动hash表动态扩张线程，
     if (start_assoc_maintenance_thread() == -1) {
         exit(EXIT_FAILURE);
     }

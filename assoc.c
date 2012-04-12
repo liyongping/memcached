@@ -133,10 +133,10 @@ static void assoc_expand(void) {
         expand_bucket = 0;
         STATS_LOCK();
         stats.hash_power_level = hashpower;
-        stats.hash_bytes += hashsize(hashpower) * sizeof(void *);
+        stats.hash_bytes += hashsize(hashpower) * sizeof(void *);//再增加同样的大小
         stats.hash_is_expanding = 1;
         STATS_UNLOCK();
-        pthread_cond_signal(&maintenance_cond);
+        pthread_cond_signal(&maintenance_cond);//触发hash表动态扩张线程
     } else {
         primary_hashtable = old_hashtable;
         /* Bad news, but we can keep running. */
@@ -160,6 +160,7 @@ int assoc_insert(item *it, const uint32_t hv) {
     }
 
     hash_items++;
+    // item的数目大于hash table的1.5倍时，扩大hash表
     if (! expanding && hash_items > (hashsize(hashpower) * 3) / 2) {
         assoc_expand();
     }
@@ -194,6 +195,10 @@ static volatile int do_run_maintenance_thread = 1;
 #define DEFAULT_HASH_BULK_MOVE 1
 int hash_bulk_move = DEFAULT_HASH_BULK_MOVE;
 
+/*
+ * 如果assoc_insert添加item时，item的数目大于hash table的1.5倍时，将expanding设置为true，
+ * 通过pthread_cond_t唤醒睡眠的线程，触发hash table的扩张。每次hash table的大小增为原来的2倍
+ */
 static void *assoc_maintenance_thread(void *arg) {
 
     while (do_run_maintenance_thread) {
