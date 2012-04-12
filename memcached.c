@@ -3242,7 +3242,7 @@ static void process_command(conn *c, char *command) {
         out_string(c, "SERVER_ERROR out of memory preparing response");
         return;
     }
-
+    // 获取操作命令
     ntokens = tokenize_command(command, tokens, MAX_TOKENS);
     if (ntokens >= 3 &&
         ((strcmp(tokens[COMMAND_TOKEN].value, "get") == 0) ||
@@ -3256,7 +3256,7 @@ static void process_command(conn *c, char *command) {
                 (strcmp(tokens[COMMAND_TOKEN].value, "replace") == 0 && (comm = NREAD_REPLACE)) ||
                 (strcmp(tokens[COMMAND_TOKEN].value, "prepend") == 0 && (comm = NREAD_PREPEND)) ||
                 (strcmp(tokens[COMMAND_TOKEN].value, "append") == 0 && (comm = NREAD_APPEND)) )) {
-
+        // 处理更新命令
         process_update_command(c, tokens, ntokens, comm, false);
 
     } else if ((ntokens == 7 || ntokens == 8) && (strcmp(tokens[COMMAND_TOKEN].value, "cas") == 0 && (comm = NREAD_CAS))) {
@@ -4193,19 +4193,20 @@ static int server_socket(const char *interface,
             }
         }
 #endif
-
+        // SO_REUSEADDR: 设置调用closesocket()后,仍可继续重用该socket。调用closesocket()一般不会立即关闭socket，而经历 TIME_WAIT的过程
         setsockopt(sfd, SOL_SOCKET, SO_REUSEADDR, (void *)&flags, sizeof(flags));
         if (IS_UDP(transport)) {
             maximize_sndbuf(sfd);
         } else {
+            // SO_KEEPALIVE: 发送“保持活动”包
             error = setsockopt(sfd, SOL_SOCKET, SO_KEEPALIVE, (void *)&flags, sizeof(flags));
             if (error != 0)
                 perror("setsockopt");
-
+            // SO_LINGER={0,0}: close调用会立即返回给调用者，如果可能将会传输任何未发送的数据
             error = setsockopt(sfd, SOL_SOCKET, SO_LINGER, (void *)&ling, sizeof(ling));
             if (error != 0)
                 perror("setsockopt");
-
+            // TCP_NODELAY: 禁止发送合并的Nagle算法,使小块数据能够及时发送出去
             error = setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, (void *)&flags, sizeof(flags));
             if (error != 0)
                 perror("setsockopt");
