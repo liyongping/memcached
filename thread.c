@@ -47,11 +47,12 @@ pthread_mutex_t conn_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t atomics_mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
-/* Lock for global stats */
+/* Lock for global stats，缓存状态锁，用来同步memcached的一些统计数据的存取 */
 static pthread_mutex_t stats_lock;
 
 /* Free list of CQ_ITEM structs */
 static CQ_ITEM *cqi_freelist;
+/* 用来同步空闲连接链表的存取 */
 static pthread_mutex_t cqi_freelist_lock;
 
 static pthread_mutex_t *item_locks;
@@ -59,7 +60,7 @@ static pthread_mutex_t *item_locks;
 static uint32_t item_lock_count;
 /* size - 1 for lookup masking */
 static uint32_t item_lock_mask;
-
+/* 主线程对应的 */
 static LIBEVENT_DISPATCHER_THREAD dispatcher_thread;
 
 /*
@@ -72,7 +73,9 @@ static LIBEVENT_THREAD *threads;
  * Number of worker threads that have finished setting themselves up.
  */
 static int init_count = 0;
+/* 用来同步init_count（已初始化完的线程数）变量的存取 */
 static pthread_mutex_t init_lock;
+/* 用来通知所有线程都初始化完成的条件变量 */
 static pthread_cond_t init_cond;
 
 
@@ -242,27 +245,31 @@ void accept_new_conns(const bool do_accept) {
  * Set up a thread's information.
  */
 static void setup_thread(LIBEVENT_THREAD *me) {
-    me->base = event_init();
+    me->base = event_init();// 给每个线程实例化一个libevent
     if (! me->base) {
         fprintf(stderr, "Can't allocate event base\n");
         exit(1);
     }
 
     /* Listen for notifications from other threads */
+    /* event_set初始化一个event，其中要监听的fd为notify_receive_fd，事件回调处理为：thread_libevent_process
+     * 每个workers线程目前只在自己线程的管道的读端有数据时可读时触发 */
     event_set(&me->notify_event, me->notify_receive_fd,
               EV_READ | EV_PERSIST, thread_libevent_process, me);
+    /* 把event关联到对应的base中监听 */
     event_base_set(me->base, &me->notify_event);
 
     if (event_add(&me->notify_event, 0) == -1) {
         fprintf(stderr, "Can't monitor libevent notify pipe\n");
         exit(1);
     }
-
+    // 为每个线程申请一个请求连接队列
     me->new_conn_queue = malloc(sizeof(struct conn_queue));
     if (me->new_conn_queue == NULL) {
         perror("Failed to allocate memory for connection queue");
         exit(EXIT_FAILURE);
     }
+    // 初始化每个请求连接队列
     cq_init(me->new_conn_queue);
 
     if (pthread_mutex_init(&me->stats.mutex, NULL) != 0) {
@@ -307,14 +314,15 @@ static void thread_libevent_process(int fd, short which, void *arg) {
     LIBEVENT_THREAD *me = arg;
     CQ_ITEM *item;
     char buf[1];
-
+    // 首先将管道的1个字节通知信号读出，跟另一边的write 1个字节对应，起通知作用
     if (read(fd, buf, 1) != 1)
         if (settings.verbose > 0)
             fprintf(stderr, "Can't read from libevent pipe\n");
-
+    // cq_pop是从该线程的CQ队列中取队列头的一个CQ_ITEM,这个CQ_ITEM是被主线程丢到这个队列里的
     item = cq_pop(me->new_conn_queue);
 
     if (NULL != item) {
+        // 通过conn_new函数为该描述符注册libevent的读事件，me->base是代表自己的一个线程结构体
         conn *c = conn_new(item->sfd, item->init_state, item->event_flags,
                            item->read_buffer_size, item->transport, me->base);
         if (c == NULL) {
@@ -357,10 +365,11 @@ void dispatch_conn_new(int sfd, enum conn_states init_state, int event_flags,
     item->event_flags = event_flags;// 保存evnet的标志
     item->read_buffer_size = read_buffer_size;
     item->transport = transport;
-
+    // 将item塞到worker线程的队列中
     cq_push(thread->new_conn_queue, item);
 
     MEMCACHED_CONN_DISPATCH(sfd, thread->thread_id);
+    // 向该线程管道写了1字节数据，则该线程的libevent立即回调了thread_libevent_process方法
     if (write(thread->notify_send_fd, "", 1) != 1) {
         perror("Writing to thread notify pipe");
     }
@@ -664,13 +673,15 @@ void slab_stats_aggregate(struct thread_stats *stats, struct slab_stats *out) {
 void thread_init(int nthreads, struct event_base *main_base) {
     int         i;
     int         power;
-
+    // 主锁，用来同步key-value缓存的存取
     pthread_mutex_init(&cache_lock, NULL);
+    // 缓存状态锁，用来同步memcached的一些统计数据的存取
     pthread_mutex_init(&stats_lock, NULL);
-
+    // 用来同步init_count（已初始化完的线程数）变量的存取
     pthread_mutex_init(&init_lock, NULL);
+    // 用来通知所有线程都初始化完成的条件变量
     pthread_cond_init(&init_cond, NULL);
-
+    // 用来同步空闲连接链表的存取
     pthread_mutex_init(&cqi_freelist_lock, NULL);
     cqi_freelist = NULL;
 
@@ -703,10 +714,10 @@ void thread_init(int nthreads, struct event_base *main_base) {
         perror("Can't allocate thread descriptors");
         exit(1);
     }
-
+    // 保存主线程的信息
     dispatcher_thread.base = main_base;
     dispatcher_thread.thread_id = pthread_self();
-
+    // 初始化nthreads个线程信息,设置主附线程通信的管道
     for (i = 0; i < nthreads; i++) {
         int fds[2];
         if (pipe(fds)) {
@@ -714,8 +725,8 @@ void thread_init(int nthreads, struct event_base *main_base) {
             exit(1);
         }
 
-        threads[i].notify_receive_fd = fds[0];
-        threads[i].notify_send_fd = fds[1];
+        threads[i].notify_receive_fd = fds[0];  // 线程监听notify_receive_fd是否有事件需要处理
+        threads[i].notify_send_fd = fds[1];     // 主线程通过notify_send_fd发送fd给对应的线程处理
 
         setup_thread(&threads[i]);
         /* Reserve three fds for the libevent base, and two for the pipe */
@@ -724,7 +735,7 @@ void thread_init(int nthreads, struct event_base *main_base) {
 
     /* Create threads after we've done all the libevent setup. */
     for (i = 0; i < nthreads; i++) {
-        create_worker(worker_libevent, &threads[i]);
+        create_worker(worker_libevent, &threads[i]);// 调用pthread_create创建线程
     }
 
     /* Wait for all the threads to set themselves up before returning. */
