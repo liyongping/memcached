@@ -89,11 +89,12 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags, const rel_tim
     uint8_t nsuffix;
     item *it = NULL;
     char suffix[40];
+    // 计算存储key,value，suffix等需要的空间大小
     size_t ntotal = item_make_header(nkey + 1, flags, nbytes, suffix, &nsuffix);
     if (settings.use_cas) {
         ntotal += sizeof(uint64_t);
     }
-
+    // 通过占用的内存大小ntotal，找到适合的slabs，从中申请内存来存放item等数据
     unsigned int id = slabs_clsid(ntotal);
     if (id == 0)
         return 0;
@@ -151,7 +152,7 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags, const rel_tim
         }
     } else {
         /* If the LRU is empty or locked, attempt to allocate memory */
-        it = slabs_alloc(ntotal, id);
+        it = slabs_alloc(ntotal, id);// 从对应的slabs中申请一个块大小为ntotal的内存
         if (search != NULL)
             refcount_decr(&search->refcount);
     }
@@ -190,9 +191,9 @@ item *do_item_alloc(char *key, const size_t nkey, const int flags, const rel_tim
     it->it_flags = settings.use_cas ? ITEM_CAS : 0;
     it->nkey = nkey;
     it->nbytes = nbytes;
-    memcpy(ITEM_key(it), key, nkey);
+    memcpy(ITEM_key(it), key, nkey);// 复制key到item中
     it->exptime = exptime;
-    memcpy(ITEM_suffix(it), suffix, (size_t)nsuffix);
+    memcpy(ITEM_suffix(it), suffix, (size_t)nsuffix);//复制suffix到item中
     it->nsuffix = nsuffix;
     return it;
 }

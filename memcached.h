@@ -88,17 +88,17 @@
         (i)->data->cas = v; \
     } \
 }
-
+/* 获取item对应key的地址 */
 #define ITEM_key(item) (((char*)&((item)->data)) \
          + (((item)->it_flags & ITEM_CAS) ? sizeof(uint64_t) : 0))
-
+/* 获取item对应suffix的地址 */
 #define ITEM_suffix(item) ((char*) &((item)->data) + (item)->nkey + 1 \
          + (((item)->it_flags & ITEM_CAS) ? sizeof(uint64_t) : 0))
-
+/* 获取item对应value数据的地址 */
 #define ITEM_data(item) ((char*) &((item)->data) + (item)->nkey + 1 \
          + (item)->nsuffix \
          + (((item)->it_flags & ITEM_CAS) ? sizeof(uint64_t) : 0))
-
+/* item占用的总内存大小 */
 #define ITEM_ntotal(item) (sizeof(struct _stritem) + (item)->nkey + 1 \
          + (item)->nsuffix + (item)->nbytes \
          + (((item)->it_flags & ITEM_CAS) ? sizeof(uint64_t) : 0))
@@ -325,12 +325,12 @@ typedef struct _stritem {
     struct _stritem *h_next;    /* hash chain next */
     rel_time_t      time;       /* least recent access */
     rel_time_t      exptime;    /* expire time */
-    int             nbytes;     /* size of data */
+    int             nbytes;     /* size of data，value的长度 */
     unsigned short  refcount;
     uint8_t         nsuffix;    /* length of flags-and-length string */
     uint8_t         it_flags;   /* ITEM_* above */
     uint8_t         slabs_clsid;/* which slab class we're in */
-    uint8_t         nkey;       /* key length, w/terminating null and padding */
+    uint8_t         nkey;       /* key length, w/terminating null and padding，key的长度 */
     /* this odd type prevents type-punning issues when we do
      * the little shuffle to save space when not using CAS. */
     union {
@@ -387,8 +387,8 @@ struct conn {
     enum conn_states  write_and_go;
     void   *write_and_free; /** free this memory after finishing writing */
 
-    char   *ritem;  /** when we read in an item's value, it goes here */
-    int    rlbytes;
+    char   *ritem;  /** when we read in an item's value, it goes here 指向item数据value的buffer */
+    int    rlbytes; /* item数据value的长度 */
 
     /* data for the nread state */
 

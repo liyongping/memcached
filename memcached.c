@@ -836,9 +836,9 @@ static void complete_nread_ascii(conn *c) {
     pthread_mutex_lock(&c->thread->stats.mutex);
     c->thread->stats.slab_stats[it->slabs_clsid].set_cmds++;
     pthread_mutex_unlock(&c->thread->stats.mutex);
-
+    // 检查value的长度是否符合前面输入的要求
     if (strncmp(ITEM_data(it) + it->nbytes - 2, "\r\n", 2) != 0) {
-        out_string(c, "CLIENT_ERROR bad data chunk");
+        out_string(c, "CLIENT_ERROR bad data chunk");// 输入数据有误
     } else {
       ret = store_item(it, comm, c);
 
@@ -2881,7 +2881,7 @@ static void process_update_command(conn *c, token_t *tokens, const size_t ntoken
 
     key = tokens[KEY_TOKEN].value;
     nkey = tokens[KEY_TOKEN].length;
-
+    // 获取flags，exptime，value长度
     if (! (safe_strtoul(tokens[2].value, (uint32_t *)&flags)
            && safe_strtol(tokens[3].value, &exptime_int)
            && safe_strtol(tokens[4].value, (int32_t *)&vlen))) {
@@ -2940,12 +2940,12 @@ static void process_update_command(conn *c, token_t *tokens, const size_t ntoken
         return;
     }
     ITEM_set_cas(it, req_cas_id);
-
+    // 在conn中设置item相关的信息
     c->item = it;
     c->ritem = ITEM_data(it);
     c->rlbytes = it->nbytes;
     c->cmd = comm;
-    conn_set_state(c, conn_nread);
+    conn_set_state(c, conn_nread);//设置conn当前状态为conn_nread
 }
 
 static void process_touch_command(conn *c, token_t *tokens, const size_t ntokens) {
@@ -3887,7 +3887,7 @@ static void drive_machine(conn *c) {
             }
 
             /*  now try reading from the socket */
-            res = read(c->sfd, c->ritem, c->rlbytes);
+            res = read(c->sfd, c->ritem, c->rlbytes);// 读取数据
             if (res > 0) {
                 pthread_mutex_lock(&c->thread->stats.mutex);
                 c->thread->stats.bytes_read += res;

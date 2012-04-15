@@ -59,7 +59,7 @@ static bool expanding = false;
 static unsigned int expand_bucket = 0;
 
 void assoc_init(const int hashtable_init) {
-    if (hashtable_init) {
+    if (hashtable_init) {   // 检查是否有设置hash字典大小，如果没有采用默认的大小为2^16
         hashpower = hashtable_init;
     }
     primary_hashtable = calloc(hashsize(hashpower), sizeof(void *));
@@ -82,6 +82,7 @@ item *assoc_find(const char *key, const size_t nkey, const uint32_t hv) {
     {
         it = old_hashtable[oldbucket];
     } else {
+        // hv & hashmask(hashpower)相当于hv对hashmask(hashpower)+1取余
         it = primary_hashtable[hv & hashmask(hashpower)];
     }
 
